@@ -1,0 +1,456 @@
+version: '3.10'
+
+services:
+  # Main Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: archaeovault-app
+    ports:
+      - "8501:8501"
+    environment:
+      - APP_ENV=development
+      - DATABASE_URL=postgresql://archaeo:archaeo123@postgres:5432/archaeovault
+      - REDIS_URL=redis://redis:6379/0
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - MAPBOX_TOKEN=${MAPBOX_TOKEN:-}
+      - LOG_LEVEL=DEBUG
+      - DEBUG_MODE=true
+    volumes:
+      - .:/app
+      - /app/__pycache__
+      - /app/.pytest_cache
+      - app_uploads:/app/uploads
+      - app_reports:/app/reports
+      - app_temp:/app/temp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - archaeovault-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        python -c 'import time; time.sleep(5)' &&
+        echo 'Running database migrations...' &&
+        python -m alembic upgrade head &&
+        echo 'Starting Streamlit application...' &&
+        streamlit run app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
+      "
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: archaeovault-postgres
+    environment:
+      - POSTGRES_DB=archaeovault
+      - POSTGRES_USER=archaeo
+      - POSTGRES_PASSWORD=archaeo123
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - ./scripts/pgvector.sql:/docker-entrypoint-initdb.d/pgvector.sql
+    networks:
+      - archaeovault-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U archaeo -d archaeovault"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: archaeovault-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - archaeovault-network
+    restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # pgAdmin for Database Management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: archaeovault-pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@archaeovault.com
+      - PGADMIN_DEFAULT_PASSWORD=admin123
+      - PGADMIN_CONFIG_SERVER_MODE=False
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - archaeovault-network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  # Redis Commander for Redis Management
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: archaeovault-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+      - HTTP_USER=admin
+      - HTTP_PASSWORD=admin123
+    ports:
+      - "8081:8081"
+    networks:
+      - archaeovault-network
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # Test Runner
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: testing
+    container_name: archaeovault-test
+    environment:
+      - APP_ENV=testing
+      - DATABASE_URL=postgresql://archaeo:archaeo123@postgres:5432/archaeovault_test
+      - REDIS_URL=redis://redis:6379/1
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LOG_LEVEL=DEBUG
+      - PYTEST_CURRENT_TEST=true
+    volumes:
+      - .:/app
+      - /app/__pycache__
+      - /app/.pytest_cache
+      - test_reports:/app/test_reports
+    networks:
+      - archaeovault-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for services...' &&
+        python -c 'import time; time.sleep(10)' &&
+        echo 'Running tests...' &&
+        pytest tests/ -v --cov=app --cov-report=html --cov-report=xml --junitxml=test_reports/junit.xml
+      "
+    profiles:
+      - testing
+
+  # Performance Testing
+  performance-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: testing
+    container_name: archaeovault-performance-test
+    environment:
+      - APP_ENV=testing
+      - DATABASE_URL=postgresql://archaeo:archaeo123@postgres:5432/archaeovault_test
+      - REDIS_URL=redis://redis:6379/1
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - .:/app
+      - performance_reports:/app/performance_reports
+    networks:
+      - archaeovault-network
+    depends_on:
+      - app
+    command: >
+      sh -c "
+        echo 'Waiting for application...' &&
+        python -c 'import time; time.sleep(30)' &&
+        echo 'Running performance tests...' &&
+        locust --host=http://app:8501 --headless --users 100 --spawn-rate 10 --run-time 60s --html=performance_reports/performance_report.html
+      "
+    profiles:
+      - performance
+
+  # Security Testing
+  security-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: testing
+    container_name: archaeovault-security-test
+    environment:
+      - APP_ENV=testing
+      - DATABASE_URL=postgresql://archaeo:archaeo123@postgres:5432/archaeovault_test
+      - REDIS_URL=redis://redis:6379/1
+    volumes:
+      - .:/app
+      - security_reports:/app/security_reports
+    networks:
+      - archaeovault-network
+    command: >
+      sh -c "
+        echo 'Running security tests...' &&
+        bandit -r app/ -f json -o security_reports/bandit_report.json &&
+        safety check --json --output security_reports/safety_report.json &&
+        semgrep --config=auto app/ --json --output=security_reports/semgrep_report.json
+      "
+    profiles:
+      - security
+
+  # Code Quality Analysis
+  code-quality:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: testing
+    container_name: archaeovault-code-quality
+    volumes:
+      - .:/app
+      - quality_reports:/app/quality_reports
+    networks:
+      - archaeovault-network
+    command: >
+      sh -c "
+        echo 'Running code quality analysis...' &&
+        black --check --diff app/ > quality_reports/black_report.txt 2>&1 || true &&
+        isort --check-only --diff app/ > quality_reports/isort_report.txt 2>&1 || true &&
+        flake8 app/ --output-file=quality_reports/flake8_report.txt || true &&
+        mypy app/ --junit-xml=quality_reports/mypy_report.xml || true &&
+        pylint app/ --output-format=json --reports=y > quality_reports/pylint_report.json || true
+      "
+    profiles:
+      - quality
+
+  # Database Migration
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: archaeovault-migrate
+    environment:
+      - DATABASE_URL=postgresql://archaeo:archaeo123@postgres:5432/archaeovault
+    volumes:
+      - .:/app
+    networks:
+      - archaeovault-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        python -c 'import time; time.sleep(10)' &&
+        echo 'Running database migrations...' &&
+        python -m alembic upgrade head &&
+        echo 'Migrations completed!'
+      "
+    profiles:
+      - migration
+
+  # Database Seeding
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: archaeovault-seed
+    environment:
+      - DATABASE_URL=postgresql://archaeo:archaeo123@postgres:5432/archaeovault
+    volumes:
+      - .:/app
+      - seed_data:/app/seed_data
+    networks:
+      - archaeovault-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        python -c 'import time; time.sleep(10)' &&
+        echo 'Seeding database...' &&
+        python scripts/seed_database.py &&
+        echo 'Database seeded!'
+      "
+    profiles:
+      - seed
+
+  # Monitoring with Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: archaeovault-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - archaeovault-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    profiles:
+      - monitoring
+
+  # Monitoring with Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: archaeovault-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - archaeovault-network
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+
+  # Log Aggregation with ELK Stack
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: archaeovault-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - archaeovault-network
+    profiles:
+      - logging
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    container_name: archaeovault-logstash
+    volumes:
+      - ./config/logstash/pipeline:/usr/share/logstash/pipeline
+      - ./config/logstash/config:/usr/share/logstash/config
+    networks:
+      - archaeovault-network
+    depends_on:
+      - elasticsearch
+    profiles:
+      - logging
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: archaeovault-kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - archaeovault-network
+    depends_on:
+      - elasticsearch
+    profiles:
+      - logging
+
+  # Development Tools
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: archaeovault-jupyter
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - JUPYTER_TOKEN=archaeovault123
+    volumes:
+      - .:/app
+      - jupyter_data:/home/jovyan/work
+    networks:
+      - archaeovault-network
+    command: >
+      sh -c "
+        pip install jupyter jupyterlab &&
+        jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token=archaeovault123
+      "
+    profiles:
+      - development
+
+  # API Documentation
+  swagger-ui:
+    image: swaggerapi/swagger-ui:latest
+    container_name: archaeovault-swagger
+    ports:
+      - "8080:8080"
+    environment:
+      - SWAGGER_JSON=/app/swagger.json
+    volumes:
+      - ./docs/api/swagger.json:/app/swagger.json
+    networks:
+      - archaeovault-network
+    profiles:
+      - documentation
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  app_uploads:
+    driver: local
+  app_reports:
+    driver: local
+  app_temp:
+    driver: local
+  test_reports:
+    driver: local
+  performance_reports:
+    driver: local
+  security_reports:
+    driver: local
+  quality_reports:
+    driver: local
+  seed_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  elasticsearch_data:
+    driver: local
+  jupyter_data:
+    driver: local
+
+networks:
+  archaeovault-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
