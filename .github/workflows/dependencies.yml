@@ -33,33 +33,33 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: '1.6.1'
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
+      - name: Cache pip dependencies
         uses: actions/cache@v3
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Create virtual environment
+        run: python -m venv venv
+
+      - name: Activate virtual environment
+        run: |
+          source venv/bin/activate
+          python -m pip install --upgrade pip
 
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
+        run: |
+          source venv/bin/activate
+          pip install -r requirements.txt
 
       - name: Update dependencies
         run: |
           case "${{ github.event.inputs.update_type || 'all' }}" in
             "security")
-              poetry run safety check --json --output safety-report.json
-              poetry run pip-audit --format=json --output=pip-audit-report.json
+              source venv/bin/activate && safety check --json --output safety-report.json
+              source venv/bin/activate && pip-audit --format=json --output=pip-audit-report.json
               ;;
             "major")
               poetry update --dry-run
@@ -122,36 +122,36 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: '1.6.1'
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
+      - name: Cache pip dependencies
         uses: actions/cache@v3
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Create virtual environment
+        run: python -m venv venv
+
+      - name: Activate virtual environment
+        run: |
+          source venv/bin/activate
+          python -m pip install --upgrade pip
 
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
+        run: |
+          source venv/bin/activate
+          pip install -r requirements.txt
 
       - name: Run Safety check
         run: |
-          poetry run safety check --json --output safety-report.json
-          poetry run safety check
+          source venv/bin/activate && safety check --json --output safety-report.json
+          source venv/bin/activate && safety check
 
       - name: Run pip-audit
         run: |
-          poetry run pip-audit --format=json --output=pip-audit-report.json
-          poetry run pip-audit
+          source venv/bin/activate && pip-audit --format=json --output=pip-audit-report.json
+          source venv/bin/activate && pip-audit
 
       - name: Upload security reports
         uses: actions/upload-artifact@v4
@@ -173,31 +173,31 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: '1.6.1'
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
+      - name: Cache pip dependencies
         uses: actions/cache@v3
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Create virtual environment
+        run: python -m venv venv
+
+      - name: Activate virtual environment
+        run: |
+          source venv/bin/activate
+          python -m pip install --upgrade pip
 
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
+        run: |
+          source venv/bin/activate
+          pip install -r requirements.txt
 
       - name: Check licenses
         run: |
-          poetry run pip-licenses --format=json --output-file=licenses.json
-          poetry run pip-licenses --format=table
+          source venv/bin/activate && pip-licenses --format=json --output-file=licenses.json
+          source venv/bin/activate && pip-licenses --format=table
 
       - name: Upload license report
         uses: actions/upload-artifact@v4

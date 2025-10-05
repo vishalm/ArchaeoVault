@@ -24,26 +24,26 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: '1.6.1'
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
+      - name: Cache pip dependencies
         uses: actions/cache@v3
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Create virtual environment
+        run: python -m venv venv
+
+      - name: Activate virtual environment
+        run: |
+          source venv/bin/activate
+          python -m pip install --upgrade pip
 
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
+        run: |
+          source venv/bin/activate
+          pip install -r requirements.txt
 
       - name: Run SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
@@ -66,17 +66,20 @@ jobs:
 
       - name: Run Radon (Code Complexity)
         run: |
-          poetry run radon cc app/ --json --output radon-complexity.json
-          poetry run radon mi app/ --json --output radon-maintainability.json
-          poetry run radon hal app/ --json --output radon-halstead.json
+          source venv/bin/activate
+          radon cc app/ --json --output radon-complexity.json
+          radon mi app/ --json --output radon-maintainability.json
+          radon hal app/ --json --output radon-halstead.json
 
       - name: Run Xenon (Complexity Monitoring)
         run: |
-          poetry run xenon --max-absolute B --max-modules A --max-average A app/
+          source venv/bin/activate
+          xenon --max-absolute B --max-modules A --max-average A app/
 
       - name: Run Vulture (Dead Code Detection)
         run: |
-          poetry run vulture app/ --min-confidence 60 --exclude tests/
+          source venv/bin/activate
+          vulture app/ --min-confidence 60 --exclude tests/
 
       - name: Upload quality reports
         uses: actions/upload-artifact@v4
@@ -99,30 +102,30 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: '1.6.1'
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
+      - name: Cache pip dependencies
         uses: actions/cache@v3
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Create virtual environment
+        run: python -m venv venv
+
+      - name: Activate virtual environment
+        run: |
+          source venv/bin/activate
+          python -m pip install --upgrade pip
 
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
+        run: |
+          source venv/bin/activate
+          pip install -r requirements.txt
 
       - name: Run performance tests
         run: |
-          poetry run pytest tests/performance/ \
+          source venv/bin/activate && pytest tests/performance/ \
             --benchmark-only \
             --benchmark-save=performance \
             --benchmark-save-data \
@@ -131,11 +134,11 @@ jobs:
 
       - name: Run memory profiling
         run: |
-          poetry run python -m memory_profiler app/main.py || true
+          source venv/bin/activate && python -m memory_profiler app/main.py || true
 
       - name: Run line profiling
         run: |
-          poetry run kernprof -l -v app/main.py || true
+          source venv/bin/activate && kernprof -l -v app/main.py || true
 
       - name: Upload performance data
         uses: actions/upload-artifact@v4
@@ -158,38 +161,38 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: '1.6.1'
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
+      - name: Cache pip dependencies
         uses: actions/cache@v3
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Create virtual environment
+        run: python -m venv venv
+
+      - name: Activate virtual environment
+        run: |
+          source venv/bin/activate
+          python -m pip install --upgrade pip
 
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
+        run: |
+          source venv/bin/activate
+          pip install -r requirements.txt
 
       - name: Check docstring coverage
         run: |
-          poetry run interrogate --config pyproject.toml app/
+          source venv/bin/activate && interrogate --config pyproject.toml app/
 
       - name: Generate documentation
         run: |
-          poetry run sphinx-build -b html docs/ docs/_build/html
+          source venv/bin/activate && sphinx-build -b html docs/ docs/_build/html
 
       - name: Check for broken links
         run: |
-          poetry run linkchecker docs/_build/html/index.html || true
+          source venv/bin/activate && linkchecker docs/_build/html/index.html || true
 
       - name: Upload documentation
         uses: actions/upload-artifact@v4
@@ -209,30 +212,30 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: '1.6.1'
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
+      - name: Cache pip dependencies
         uses: actions/cache@v3
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Create virtual environment
+        run: python -m venv venv
+
+      - name: Activate virtual environment
+        run: |
+          source venv/bin/activate
+          python -m pip install --upgrade pip
 
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
+        run: |
+          source venv/bin/activate
+          pip install -r requirements.txt
 
       - name: Run tests with coverage
         run: |
-          poetry run pytest tests/unit/ \
+          source venv/bin/activate && pytest tests/unit/ \
             --cov=app \
             --cov-report=xml \
             --cov-report=html \

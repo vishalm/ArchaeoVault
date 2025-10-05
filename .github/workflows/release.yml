@@ -39,35 +39,36 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: '1.6.1'
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
+      - name: Cache pip dependencies
         uses: actions/cache@v3
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Create virtual environment
+        run: python -m venv venv
+
+      - name: Activate virtual environment
+        run: |
+          source venv/bin/activate
+          python -m pip install --upgrade pip
 
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
+        run: |
+          source venv/bin/activate
+          pip install -r requirements.txt
 
       - name: Generate changelog
         id: changelog
         run: |
           # Install git-changelog
-          poetry add --dev git-changelog
+          source venv/bin/activate
+          pip install git-changelog
           
           # Generate changelog
-          poetry run git-changelog --output CHANGELOG.md
+          git-changelog --output CHANGELOG.md
           
           # Extract changelog for this version
           VERSION=${GITHUB_REF#refs/tags/}
@@ -148,14 +149,15 @@ jobs:
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
+        run: |
+          source venv/bin/activate
+          pip install -r requirements.txt
 
       - name: Build package
         run: |
-          poetry build
+          source venv/bin/activate
+          pip install build
+          python -m build
 
       - name: Upload wheel
         uses: actions/upload-release-asset@v1.0.3
@@ -191,36 +193,41 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: '1.6.1'
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
+      - name: Cache pip dependencies
         uses: actions/cache@v3
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Create virtual environment
+        run: python -m venv venv
+
+      - name: Activate virtual environment
+        run: |
+          source venv/bin/activate
+          python -m pip install --upgrade pip
 
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
+        run: |
+          source venv/bin/activate
+          pip install -r requirements.txt
 
       - name: Build package
-        run: poetry build
+        run: |
+          source venv/bin/activate
+          pip install build
+          python -m build
 
       - name: Publish to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
-          poetry run twine upload dist/*
+          source venv/bin/activate
+          pip install twine
+          twine upload dist/*
 
   notify:
     name: Notify Release
@@ -274,30 +281,31 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: '1.6.1'
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
+      - name: Cache pip dependencies
         uses: actions/cache@v3
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Create virtual environment
+        run: python -m venv venv
+
+      - name: Activate virtual environment
+        run: |
+          source venv/bin/activate
+          python -m pip install --upgrade pip
 
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install project
-        run: poetry install --no-interaction
+        run: |
+          source venv/bin/activate
+          pip install -r requirements.txt
 
       - name: Generate documentation
         run: |
-          poetry run sphinx-build -b html docs/ docs/_build/html
+          source venv/bin/activate
+          sphinx-build -b html docs/ docs/_build/html
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
