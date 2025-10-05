@@ -77,15 +77,15 @@ class MaterialIdentificationTool(AgentTool):
         # For now, return mock analysis
         return {
             "primary_material": "ceramic",
-            "secondary_materials": ["clay", "temper"],
+            "secondary_materials": ["ceramic", "other"],
             "composition": {
-                "clay": 85.0,
+                "ceramic": 85.0,
                 "temper": 10.0,
                 "water": 5.0
             },
             "manufacturing_technique": "wheel-thrown pottery",
             "firing_temperature": 900.0,
-            "provenance": "Local clay source",
+            "provenance": "Local ceramic source",
             "analysis_method": "Visual and tactile analysis",
             "confidence": 0.90
         }

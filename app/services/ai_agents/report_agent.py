@@ -230,9 +230,9 @@ class ReportGenerationAgent(BaseAgent):
                 "format_converter",
                 content=self._combine_sections(sections),
                 source_format="markdown",
-                target_format=format_type.value
+                target_format=format_type
             )
-            format_conversions[format_type.value] = conversion["download_url"]
+            format_conversions[format_type] = conversion["download_url"]
         
         # Create report generation record
         generation = ReportGeneration(
@@ -245,9 +245,9 @@ class ReportGenerationAgent(BaseAgent):
                 {"type": "analysis_data", "id": "multiple"}
             ],
             parameters={
-                "report_type": report_data.report_type.value,
+                "report_type": report_data.report_type,
                 "citation_style": "apa",
-                "target_formats": [f.value for f in ReportFormat]
+                "target_formats": [f for f in ReportFormat]
             },
             processing_time=0.0,
             ai_agent_version=self.config.agent_version,
@@ -394,7 +394,7 @@ class ReportGenerationAgent(BaseAgent):
             "quality_score": generation.quality_score,
             "completeness_score": generation.completeness_score,
             "accuracy_score": generation.accuracy_score,
-            "output_formats": [f.value for f in generation.output_formats],
+            "output_formats": [f for f in generation.output_formats],
             "processing_time": generation.processing_time,
             "status": generation.status
         }

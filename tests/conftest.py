@@ -19,12 +19,12 @@ from typing import Dict, Any, Generator
 import json
 
 # Test imports
-from app.config import Config
+from app.config import Settings, AISettings, DatabaseSettings, RedisSettings, LoggingSettings
 from app.models.artifact import Artifact, ArtifactData
 from app.models.civilization import Civilization, CivilizationData
 from app.models.excavation import Excavation, ExcavationData
-from app.services.ai_analyzer import ArchaeologyAI
-from app.services.agent_orchestrator import AIOrchestrator
+from app.services.ai_orchestrator import AIOrchestrator
+from app.services.ai_agents.base_agent import AgentConfig
 
 # Test configuration
 @pytest.fixture(scope="session")
@@ -37,12 +37,34 @@ def event_loop():
 @pytest.fixture
 def test_config():
     """Provide test configuration"""
-    return Config(
-        ANTHROPIC_API_KEY="test-key",
-        DATABASE_URL="sqlite:///test.db",
-        REDIS_URL="redis://localhost:6379/1",
-        DEBUG_MODE=True,
-        LOG_LEVEL="DEBUG"
+    return Settings(
+        app_env="testing",
+        debug_mode=True,
+        ai=AISettings(anthropic_api_key="test-key"),
+        database=DatabaseSettings(url="sqlite:///test.db"),
+        redis=RedisSettings(url="redis://localhost:6379/1"),
+        logging=LoggingSettings(level="DEBUG")
+    )
+
+@pytest.fixture
+def test_agent_config():
+    """Provide test agent configuration"""
+    return AgentConfig(
+        api_key="test-key",
+        model="claude-3-5-sonnet-20241022",
+        temperature=0.7,
+        max_tokens=4000,
+        timeout=30,
+        agent_name="TestAgent",
+        max_retries=3,
+        retry_delay=1.0,
+        cache_ttl=3600,
+        memory_enabled=True,
+        memory_size=1000,
+        memory_ttl=86400,
+        tools_enabled=True,
+        max_tool_calls=10,
+        tool_timeout=15
     )
 
 @pytest.fixture
@@ -74,21 +96,24 @@ def mock_anthropic_client():
 @pytest.fixture
 def mock_ai_analyzer(mock_anthropic_client):
     """Mock AI analyzer service"""
-    with patch('app.services.ai_analyzer.ArchaeologyAI') as mock_analyzer:
+    with patch('app.services.ai_agents.artifact_agent.ArtifactAnalysisAgent') as mock_analyzer:
         mock_instance = Mock()
-        mock_instance.analyze_artifact = AsyncMock(return_value={
-            "description": "Test artifact analysis",
-            "confidence": 0.85,
-            "civilization": "Test Civilization",
-            "dating_estimate": "1000-800 BCE"
-        })
+        mock_instance.process = AsyncMock(return_value=Mock(
+            success=True,
+            data={
+                "description": "Test artifact analysis",
+                "confidence": 0.85,
+                "civilization": "Test Civilization",
+                "dating_estimate": "1000-800 BCE"
+            }
+        ))
         mock_analyzer.return_value = mock_instance
         yield mock_instance
 
 @pytest.fixture
 def mock_agent_orchestrator():
     """Mock AI agent orchestrator"""
-    with patch('app.services.agent_orchestrator.AIOrchestrator') as mock_orchestrator:
+    with patch('app.services.ai_orchestrator.AIOrchestrator') as mock_orchestrator:
         mock_instance = Mock()
         mock_instance.process_complex_request = AsyncMock(return_value={
             "artifact_analysis": {"confidence": 0.85},
@@ -156,7 +181,7 @@ def mock_redis():
 @pytest.fixture
 def mock_database():
     """Mock database connection"""
-    with patch('app.database.get_connection') as mock_db:
+    with patch('app.services.database.DatabaseManager') as mock_db:
         mock_connection = Mock()
         mock_connection.execute = AsyncMock()
         mock_connection.fetch = AsyncMock(return_value=[])

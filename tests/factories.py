@@ -13,9 +13,9 @@ import factory
 from factory import fuzzy
 import random
 
-from app.models.artifact import Artifact, ArtifactData
+from app.models.artifact import Artifact, ArtifactData, ArtifactMaterial, ArtifactPeriod, ArtifactCondition
 from app.models.civilization import Civilization, CivilizationData
-from app.models.excavation import Excavation, ExcavationData
+from app.models.excavation import Excavation, ExcavationData, SiteType, GridSystem, ExcavationMethod, GridPoint
 
 # Base factory class
 class BaseFactory(factory.Factory):
@@ -40,11 +40,12 @@ class ArtifactDataFactory(BaseFactory):
     
     id = factory.LazyFunction(lambda: str(uuid.uuid4()))
     name = factory.Sequence(lambda n: f"Test Artifact {n}")
-    material = factory.Iterator(["ceramic", "metal", "stone", "bone", "wood", "textile"])
+    material = factory.Iterator([ArtifactMaterial.CERAMIC, ArtifactMaterial.METAL, ArtifactMaterial.STONE, ArtifactMaterial.BONE, ArtifactMaterial.WOOD, ArtifactMaterial.TEXTILE])
     period = factory.Iterator([
-        "Paleolithic", "Neolithic", "Bronze Age", "Iron Age", 
-        "Classical", "Medieval", "Renaissance"
+        ArtifactPeriod.PALEOLITHIC, ArtifactPeriod.NEOLITHIC, ArtifactPeriod.BRONZE_AGE, ArtifactPeriod.IRON_AGE, 
+        ArtifactPeriod.CLASSICAL, ArtifactPeriod.MEDIEVAL, ArtifactPeriod.RENAISSANCE
     ])
+    condition = factory.Iterator([ArtifactCondition.EXCELLENT, ArtifactCondition.GOOD, ArtifactCondition.FAIR, ArtifactCondition.POOR])
     condition_score = factory.LazyFunction(lambda: random.randint(1, 10))
     location = factory.LazyFunction(lambda: {
         "lat": round(random.uniform(-90, 90), 6),
@@ -77,11 +78,12 @@ class ArtifactFactory(BaseFactory):
     id = factory.LazyFunction(lambda: str(uuid.uuid4()))
     project_id = factory.LazyFunction(lambda: str(uuid.uuid4()))
     name = factory.Sequence(lambda n: f"Artifact {n}")
-    material = factory.Iterator(["ceramic", "metal", "stone", "bone", "wood", "textile"])
+    material = factory.Iterator([ArtifactMaterial.CERAMIC, ArtifactMaterial.METAL, ArtifactMaterial.STONE, ArtifactMaterial.BONE, ArtifactMaterial.WOOD, ArtifactMaterial.TEXTILE])
     period = factory.Iterator([
-        "Paleolithic", "Neolithic", "Bronze Age", "Iron Age", 
-        "Classical", "Medieval", "Renaissance"
+        ArtifactPeriod.PALEOLITHIC, ArtifactPeriod.NEOLITHIC, ArtifactPeriod.BRONZE_AGE, ArtifactPeriod.IRON_AGE, 
+        ArtifactPeriod.CLASSICAL, ArtifactPeriod.MEDIEVAL, ArtifactPeriod.RENAISSANCE
     ])
+    condition = factory.Iterator([ArtifactCondition.EXCELLENT, ArtifactCondition.GOOD, ArtifactCondition.FAIR, ArtifactCondition.POOR])
     location = factory.LazyFunction(lambda: {
         "lat": round(random.uniform(-90, 90), 6),
         "lon": round(random.uniform(-180, 180), 6)
@@ -177,30 +179,26 @@ class ExcavationDataFactory(BaseFactory):
         model = ExcavationData
     
     id = factory.LazyFunction(lambda: str(uuid.uuid4()))
-    project_id = factory.LazyFunction(lambda: str(uuid.uuid4()))
     site_name = factory.Sequence(lambda n: f"Excavation Site {n}")
-    location = factory.LazyFunction(lambda: {
-        "lat": round(random.uniform(-90, 90), 6),
-        "lon": round(random.uniform(-180, 180), 6)
-    })
-    grid_size = factory.LazyFunction(lambda: {
-        "width": random.randint(5, 20),
-        "height": random.randint(5, 20)
-    })
-    layers = factory.LazyFunction(lambda: [
-        {
-            "depth": round(random.uniform(0.1, 2.0), 2),
-            "soil_type": random.choice(["topsoil", "clay", "sand", "gravel", "loam"]),
-            "color": random.choice(["brown", "red", "yellow", "gray", "black"]),
-            "artifacts": [f"Artifact {i}" for i in range(random.randint(0, 5))],
-            "inclusions": random.choice(["stones", "shells", "charcoal", "none"])
-        }
-        for _ in range(random.randint(2, 8))
-    ])
-    findings = factory.LazyFunction(lambda: [
-        f"Finding {i}" for i in range(random.randint(1, 10))
-    ])
-    status = factory.Iterator(["planned", "in_progress", "completed", "suspended"])
+    site_code = factory.Sequence(lambda n: f"SITE-{n:03d}")
+    description = factory.Sequence(lambda n: f"Test excavation site {n}")
+    site_type = factory.Iterator([SiteType.SETTLEMENT, SiteType.BURIAL, SiteType.RITUAL, SiteType.INDUSTRIAL])
+    cultural_period = factory.Iterator(["Bronze Age", "Iron Age", "Classical", "Medieval"])
+    estimated_age = factory.LazyFunction(lambda: random.randint(1000, 5000))
+    grid_system = factory.Iterator([GridSystem.CARTESIAN, GridSystem.POLAR, GridSystem.CUSTOM])
+    grid_origin = factory.LazyFunction(lambda: GridPoint(
+        x=random.uniform(0, 100),
+        y=random.uniform(0, 100),
+        elevation=random.uniform(0, 1000),
+        unit="meters"
+    ))
+    total_area = factory.LazyFunction(lambda: round(random.uniform(10, 1000), 2))
+    excavation_method = factory.Iterator([ExcavationMethod.STRATIGRAPHIC, ExcavationMethod.ARBITRARY, ExcavationMethod.MIXED])
+    start_date = factory.LazyFunction(lambda: datetime.now())
+    end_date = factory.LazyFunction(lambda: datetime.now())
+    latitude = factory.LazyFunction(lambda: round(random.uniform(-90, 90), 6))
+    longitude = factory.LazyFunction(lambda: round(random.uniform(-180, 180), 6))
+    elevation = factory.LazyFunction(lambda: round(random.uniform(0, 1000), 2))
     created_at = factory.LazyFunction(datetime.now)
     updated_at = factory.LazyFunction(datetime.now)
 
@@ -239,8 +237,8 @@ class ExcavationFactory(BaseFactory):
 # Specialized factories for specific test scenarios
 class CeramicArtifactFactory(ArtifactDataFactory):
     """Factory for ceramic artifacts specifically"""
-    material = "ceramic"
-    period = factory.Iterator(["Bronze Age", "Iron Age", "Classical"])
+    material = ArtifactMaterial.CERAMIC
+    period = factory.Iterator([ArtifactPeriod.BRONZE_AGE, ArtifactPeriod.IRON_AGE, ArtifactPeriod.CLASSICAL])
     metadata = factory.LazyFunction(lambda: {
         "color": random.choice(["red", "black", "brown"]),
         "decoration": random.choice(["geometric", "figurative", "none"]),
@@ -250,8 +248,8 @@ class CeramicArtifactFactory(ArtifactDataFactory):
 
 class MetalArtifactFactory(ArtifactDataFactory):
     """Factory for metal artifacts specifically"""
-    material = "metal"
-    period = factory.Iterator(["Bronze Age", "Iron Age", "Classical"])
+    material = ArtifactMaterial.METAL
+    period = factory.Iterator([ArtifactPeriod.BRONZE_AGE, ArtifactPeriod.IRON_AGE, ArtifactPeriod.CLASSICAL])
     metadata = factory.LazyFunction(lambda: {
         "metal_type": random.choice(["bronze", "iron", "copper", "gold", "silver"]),
         "alloy_composition": random.choice(["pure", "alloyed", "mixed"]),
@@ -261,8 +259,8 @@ class MetalArtifactFactory(ArtifactDataFactory):
 
 class StoneArtifactFactory(ArtifactDataFactory):
     """Factory for stone artifacts specifically"""
-    material = "stone"
-    period = factory.Iterator(["Paleolithic", "Neolithic", "Bronze Age"])
+    material = ArtifactMaterial.STONE
+    period = factory.Iterator([ArtifactPeriod.PALEOLITHIC, ArtifactPeriod.NEOLITHIC, ArtifactPeriod.BRONZE_AGE])
     metadata = factory.LazyFunction(lambda: {
         "stone_type": random.choice(["flint", "obsidian", "granite", "limestone", "marble"]),
         "tool_type": random.choice(["handaxe", "scraper", "blade", "point", "adze"]),

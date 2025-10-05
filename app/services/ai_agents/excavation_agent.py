@@ -129,9 +129,21 @@ class RiskAssessmentTool(AgentTool):
             ],
             "overall_risk_level": "medium",
             "mitigation_strategies": [
-                "Weather contingency planning",
-                "Site protection measures",
-                "Emergency procedures"
+                {
+                    "strategy": "Weather contingency planning",
+                    "description": "Implement flexible scheduling and weather monitoring",
+                    "priority": "high"
+                },
+                {
+                    "strategy": "Site protection measures",
+                    "description": "Establish protective barriers and access controls",
+                    "priority": "medium"
+                },
+                {
+                    "strategy": "Emergency procedures",
+                    "description": "Develop and implement emergency response protocols",
+                    "priority": "high"
+                }
             ]
         }
     
@@ -185,7 +197,7 @@ class ExcavationPlanningAgent(BaseAgent):
             # Create response
             response_data = {
                 "excavation_id": str(excavation_data.id),
-                "excavation_plan": excavation_plan.dict(),
+                "excavation_plan": excavation_plan.model_dump(),
                 "planning_summary": self._create_planning_summary(excavation_plan),
                 "next_steps": self._generate_next_steps(excavation_plan)
             }
@@ -213,7 +225,7 @@ class ExcavationPlanningAgent(BaseAgent):
         # Plan grid system
         grid_plan = await self.call_tool(
             "grid_planning",
-            site_data=excavation_data.dict()
+            site_data=excavation_data.model_dump()
         )
         
         # Calculate resources
@@ -225,7 +237,7 @@ class ExcavationPlanningAgent(BaseAgent):
         # Assess risks
         risk_assessment = await self.call_tool(
             "risk_assessment",
-            site_data=excavation_data.dict(),
+            site_data=excavation_data.model_dump(),
             excavation_plan=grid_plan
         )
         
@@ -240,7 +252,7 @@ class ExcavationPlanningAgent(BaseAgent):
                 "Establish site chronology",
                 "Understand site function"
             ],
-            methodology=excavation_data.excavation_method.value,
+            methodology=excavation_data.excavation_method,
             expected_duration=resource_plan["duration_weeks"] * 7,
             personnel_requirements=resource_plan["personnel_requirements"],
             equipment_requirements=resource_plan["equipment_requirements"],

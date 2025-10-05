@@ -1,0 +1,173 @@
+name: Dependency Management
+
+on:
+  schedule:
+    # Run dependency updates weekly on Mondays at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      update_type:
+        description: 'Type of update to perform'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - security
+          - major
+          - minor
+          - patch
+
+jobs:
+  update-dependencies:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: '1.6.1'
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Update dependencies
+        run: |
+          case "${{ github.event.inputs.update_type || 'all' }}" in
+            "security")
+              poetry run safety check --json --output safety-report.json
+              poetry run pip-audit --format=json --output=pip-audit-report.json
+              ;;
+            "major")
+              poetry update --dry-run
+              ;;
+            "minor")
+              poetry update --dry-run
+              ;;
+            "patch")
+              poetry update --dry-run
+              ;;
+            "all")
+              poetry update --dry-run
+              ;;
+          esac
+
+      - name: Check for outdated packages
+        run: |
+          poetry show --outdated --json > outdated-packages.json
+          cat outdated-packages.json
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update dependencies'
+          title: 'chore: update dependencies'
+          body: |
+            ## Dependency Updates
+            
+            This PR updates project dependencies to their latest versions.
+            
+            ### Updated Packages
+            - Check the changes below for updated packages
+            
+            ### Security Updates
+            - Review security-related updates carefully
+            
+            ### Testing
+            - [ ] All tests pass
+            - [ ] No breaking changes introduced
+            - [ ] Performance impact assessed
+            
+            ### Checklist
+            - [ ] Dependencies updated
+            - [ ] Tests passing
+            - [ ] Documentation updated if needed
+            - [ ] Breaking changes documented
+          branch: dependency-updates
+          delete-branch: true
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: '1.6.1'
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run Safety check
+        run: |
+          poetry run safety check --json --output safety-report.json
+          poetry run safety check
+
+      - name: Run pip-audit
+        run: |
+          poetry run pip-audit --format=json --output=pip-audit-report.json
+          poetry run pip-audit
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-audit-reports
+          path: |
+            safety-report.json
+            pip-audit-report.json
+
+  license-check:
+    name: License Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: '1.6.1'
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Check licenses
+        run: |
+          poetry run pip-licenses --format=json --output-file=licenses.json
+          poetry run pip-licenses --format=table
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v3
+        with:
+          name: license-report
+          path: licenses.json

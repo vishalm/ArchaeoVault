@@ -1,0 +1,212 @@
+name: Code Quality & Performance
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run quality checks daily at 3 AM UTC
+    - cron: '0 3 * * *'
+
+jobs:
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for better analysis
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: '1.6.1'
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=your-org
+            -Dsonar.projectKey=archaeovault
+            -Dsonar.sources=app
+            -Dsonar.tests=tests
+            -Dsonar.python.coverage.reportPaths=coverage.xml
+            -Dsonar.python.xunit.reportPath=pytest-report.xml
+
+      - name: Run CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          languages: python
+
+      - name: Run Radon (Code Complexity)
+        run: |
+          poetry run radon cc app/ --json --output radon-complexity.json
+          poetry run radon mi app/ --json --output radon-maintainability.json
+          poetry run radon hal app/ --json --output radon-halstead.json
+
+      - name: Run Xenon (Complexity Monitoring)
+        run: |
+          poetry run xenon --max-absolute B --max-modules A --max-average A app/
+
+      - name: Run Vulture (Dead Code Detection)
+        run: |
+          poetry run vulture app/ --min-confidence 60 --exclude tests/
+
+      - name: Upload quality reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-quality-reports
+          path: |
+            radon-complexity.json
+            radon-maintainability.json
+            radon-halstead.json
+
+  performance-monitoring:
+    name: Performance Monitoring
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: '1.6.1'
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run performance tests
+        run: |
+          poetry run pytest tests/performance/ \
+            --benchmark-only \
+            --benchmark-save=performance \
+            --benchmark-save-data \
+            --benchmark-histogram=performance \
+            -v
+
+      - name: Run memory profiling
+        run: |
+          poetry run python -m memory_profiler app/main.py || true
+
+      - name: Run line profiling
+        run: |
+          poetry run kernprof -l -v app/main.py || true
+
+      - name: Upload performance data
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-data
+          path: |
+            .benchmarks/
+            *.lprof
+            *.prof
+
+  documentation-quality:
+    name: Documentation Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: '1.6.1'
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Check docstring coverage
+        run: |
+          poetry run interrogate --config pyproject.toml app/
+
+      - name: Generate documentation
+        run: |
+          poetry run sphinx-build -b html docs/ docs/_build/html
+
+      - name: Check for broken links
+        run: |
+          poetry run linkchecker docs/_build/html/index.html || true
+
+      - name: Upload documentation
+        uses: actions/upload-artifact@v3
+        with:
+          name: documentation
+          path: docs/_build/html/
+
+  test-coverage-trend:
+    name: Test Coverage Trend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: '1.6.1'
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run tests with coverage
+        run: |
+          poetry run pytest tests/ \
+            --cov=app \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-report=term-missing \
+            --junitxml=pytest-report.xml \
+            -v
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: quality
+          name: codecov-quality
+          fail_ci_if_error: false
+
+      - name: Comment PR with coverage
+        uses: py-cov-action@v1
+        with:
+          path: ./coverage.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base-coverage: 80

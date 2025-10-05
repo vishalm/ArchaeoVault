@@ -184,7 +184,7 @@ class CivilizationResearchAgent(BaseAgent):
             # Create response
             response_data = {
                 "civilization_id": str(civilization_data.id),
-                "research_results": research_results.dict(),
+                "research_results": research_results.model_dump(),
                 "key_insights": self._extract_key_insights(research_results),
                 "research_gaps": self._identify_research_gaps(research_results)
             }
@@ -271,7 +271,7 @@ class CivilizationResearchAgent(BaseAgent):
         # Create map visualization
         map_analysis = await self.call_tool(
             "map_visualization",
-            civilization_data=civilization_data.dict()
+            civilization_data=civilization_data.model_dump()
         )
         
         return GeographicAnalysis(
@@ -289,7 +289,7 @@ class CivilizationResearchAgent(BaseAgent):
         # Build timeline
         timeline_data = await self.call_tool(
             "timeline_builder",
-            civilization_data=civilization_data.dict()
+            civilization_data=civilization_data.model_dump()
         )
         
         return TimelineAnalysis(
@@ -300,14 +300,14 @@ class CivilizationResearchAgent(BaseAgent):
                 {"phase": "Hellenistic", "start": "323 BCE", "end": "146 BCE"}
             ],
             peak_period=TimePeriod(
-                start_year=500,
-                end_year=400,
+                start_year=400,
+                end_year=500,
                 period_name="Classical Period",
                 is_bce=True
             ),
             decline_period=TimePeriod(
-                start_year=200,
-                end_year=146,
+                start_year=146,
+                end_year=200,
                 period_name="Decline Period",
                 is_bce=True
             ),

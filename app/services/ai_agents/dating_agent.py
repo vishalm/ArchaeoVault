@@ -7,6 +7,7 @@ using scientific methods and calibration curves.
 
 import asyncio
 import logging
+import math
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
@@ -29,28 +30,42 @@ class C14CalculationTool(AgentTool):
     async def execute(self, sample_data: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate C-14 dating."""
         # Mock calculation - in real implementation, this would use actual C-14 libraries
-        radiocarbon_age = sample_data.get("radiocarbon_age", 2000)
-        error = sample_data.get("radiocarbon_error", 50)
+        c14_ratio = sample_data.get("c14_ratio", 0.5)
+        contamination_factor = sample_data.get("contamination_factor", 0.0)
+        
+        # Calculate radiocarbon age from C-14 ratio (simplified formula)
+        # In reality, this would use the Libby half-life and more complex calculations
+        radiocarbon_age = int(-8033 * math.log(c14_ratio)) if c14_ratio > 0 else 2000
+        error = int(radiocarbon_age * 0.05)  # 5% error
+        
+        # Apply contamination correction
+        if contamination_factor > 0:
+            radiocarbon_age = int(radiocarbon_age * (1 + contamination_factor))
         
         # Simple calibration (mock)
         calibrated_age = radiocarbon_age + 200  # Mock calibration offset
         
         return {
-            "radiocarbon_age": radiocarbon_age,
-            "radiocarbon_error": error,
-            "calibrated_age": calibrated_age,
-            "confidence_interval": {
-                "min_age": calibrated_age - error,
-                "max_age": calibrated_age + error
-            },
-            "confidence_level": 0.95,
-            "calibration_curve": "intcal20",
-            "probability_distribution": [
-                (calibrated_age - error, 0.1),
-                (calibrated_age, 0.8),
-                (calibrated_age + error, 0.1)
-            ]
-        }
+                    "radiocarbon_age": radiocarbon_age,
+                    "radiocarbon_error": error,
+                    "calibrated_age": calibrated_age,
+                    "confidence_interval": {
+                        "min_age": calibrated_age - error,
+                        "max_age": calibrated_age + error
+                    },
+                    "confidence_level": 0.95,
+                    "calibration_curve": "intcal20",
+                    "probability_distribution": [
+                        (calibrated_age - error, 0.1),
+                        (calibrated_age, 0.8),
+                        (calibrated_age + error, 0.1)
+                    ],
+                    "calibrated_ages": [
+                        (calibrated_age - error, error, 0.1),
+                        (calibrated_age, error, 0.8),
+                        (calibrated_age + error, error, 0.1)
+                    ]
+                }
     
     def _get_parameters_schema(self) -> Dict[str, Any]:
         return {
@@ -171,7 +186,7 @@ class CarbonDatingAgent(BaseAgent):
         calibration_result = await self.call_tool(
             "calibration",
             radiocarbon_age=calculation_result["radiocarbon_age"],
-            curve=sample.calibration_curve.value
+            curve=sample.calibration_curve
         )
         
         # Create dating result
@@ -181,7 +196,7 @@ class CarbonDatingAgent(BaseAgent):
             calibration_curve=sample.calibration_curve,
             radiocarbon_age=calculation_result["radiocarbon_age"],
             radiocarbon_error=calculation_result["radiocarbon_error"],
-            calibrated_ages=calculation_result["probability_distribution"],
+            calibrated_ages=calculation_result["calibrated_ages"],
             best_estimate=calibration_result["calibrated_age"],
             confidence_intervals={
                 "1σ": calibration_result["age_range_1sigma"],
@@ -193,7 +208,7 @@ class CarbonDatingAgent(BaseAgent):
             age_range_2sigma=calibration_result["age_range_2sigma"],
             calibration_quality=calibration_result["calibration_quality"],
             confidence_level=calculation_result["confidence_level"],
-            notes=f"Calculated using {sample.calibration_curve.value} calibration curve"
+            notes=f"Calculated using {sample.calibration_curve} calibration curve"
         )
         
         return result
