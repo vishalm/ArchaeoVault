@@ -68,7 +68,7 @@ jobs:
           poetry run vulture app/ --min-confidence 60 --exclude tests/
 
       - name: Upload quality reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: code-quality-reports
           path: |
@@ -116,7 +116,7 @@ jobs:
           poetry run kernprof -l -v app/main.py || true
 
       - name: Upload performance data
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: performance-data
           path: |
@@ -159,7 +159,7 @@ jobs:
           poetry run linkchecker docs/_build/html/index.html || true
 
       - name: Upload documentation
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: documentation
           path: docs/_build/html/

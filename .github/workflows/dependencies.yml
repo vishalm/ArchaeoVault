@@ -132,7 +132,7 @@ jobs:
           poetry run pip-audit
 
       - name: Upload security reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: security-audit-reports
           path: |
@@ -167,7 +167,7 @@ jobs:
           poetry run pip-licenses --format=table
 
       - name: Upload license report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: license-report
           path: licenses.json
